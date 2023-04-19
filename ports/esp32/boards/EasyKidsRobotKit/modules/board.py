@@ -1,13 +1,10 @@
 from machine import Pin, PWM, I2C, ADC, time_pulse_us
 from time import sleep, sleep_ms, sleep_us
 import _thread
+import machine
+import st7789
 
 # Board Pin define
-LCD_DC_PIN = const(2)
-LCD_RES_PIN = const(4)
-LCD_CLK_PIN = const(18)
-LCD_MOSI_PIN = const(23)
-
 I2C_SDA_PIN = const(21)
 I2C_SCL_PIN = const(22)
 
@@ -250,3 +247,15 @@ class VR_t:
         return round(self.raw() / 4095 * 3.3, 2)
 
 vr = VR_t()
+
+def color_hex(c):
+        if type(c) is str:
+            c = int(c[1:], 16)
+        r = (c >> 16) & 0xFF
+        g = (c >> 8) & 0xFF
+        b = c & 0xFF
+        return st7789.color565(r, g, b)
+
+spi = machine.SPI(2, baudrate=40000000, polarity=1, sck=machine.Pin(18), mosi=machine.Pin(23))
+display = st7789.ST7789(spi, 240, 240, reset=machine.Pin(4, machine.Pin.OUT), dc=machine.Pin(2, machine.Pin.OUT))
+display.init()
