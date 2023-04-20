@@ -137,8 +137,15 @@ STATIC void fill_color_buffer(mp_obj_base_t* spi_obj, uint16_t color, int length
     }
 }
 
+#define LIMIT(value, min, max) { \
+    value = value > max ? max : value; \
+    value = value < min ? min : value; \
+}
 
-STATIC void draw_pixel(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t color) {
+STATIC void draw_pixel(st7789_ST7789_obj_t *self, int16_t x, int16_t y, uint16_t color) {
+    LIMIT(x, 0, 239);
+    LIMIT(y, 0, 239);
+    
     uint8_t hi = color >> 8, lo = color;
     set_window(self, x, y, x, y);
     DC_HIGH();
@@ -149,7 +156,14 @@ STATIC void draw_pixel(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t
 }
 
 
-STATIC void fast_hline(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t w, uint16_t color) {
+STATIC void fast_hline(st7789_ST7789_obj_t *self, int16_t x, int16_t y, uint16_t w, uint16_t color) {
+    LIMIT(x, 0, 239);
+    LIMIT(y, 0, 239);
+
+    if ((x + w - 1) > 239) {
+        w = 239 - x;
+    }
+    
     set_window(self, x, y, x + w - 1, y);
     DC_HIGH();
     CS_LOW();
@@ -158,7 +172,14 @@ STATIC void fast_hline(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t
 }
 
 
-STATIC void fast_vline(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t w, uint16_t color) {
+STATIC void fast_vline(st7789_ST7789_obj_t *self, int16_t x, int16_t y, uint16_t w, uint16_t color) {
+    LIMIT(x, 0, 239);
+    LIMIT(y, 0, 239);
+
+    if ((y + w - 1) > 239) {
+        w = 239 - y;
+    }
+    
     set_window(self, x, y, x, y + w - 1);
     DC_HIGH();
     CS_LOW();
@@ -166,6 +187,57 @@ STATIC void fast_vline(st7789_ST7789_obj_t *self, uint8_t x, uint8_t y, uint16_t
     CS_HIGH();
 }
 
+STATIC void line(st7789_ST7789_obj_t *self, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color) {
+    LIMIT(x0, 0, 239);
+    LIMIT(y0, 0, 239);
+    LIMIT(x1, 0, 239);
+    LIMIT(y1, 0, 239);
+    
+    bool steep = ABS(y1 - y0) > ABS(x1 - x0);
+    if (steep) {
+        _swap_int16_t(x0, y0);
+        _swap_int16_t(x1, y1);
+    }
+
+    if (x0 > x1) {
+        _swap_int16_t(x0, x1);
+        _swap_int16_t(y0, y1);
+    }
+
+    int16_t dx = x1 - x0, dy = ABS(y1 - y0);
+    int16_t err = dx >> 1, ystep = -1, xs = x0, dlen = 0;
+
+    if (y0 < y1) ystep = 1;
+
+    // Split into steep and not steep for FastH/V separation
+    if (steep) {
+        for (; x0 <= x1; x0++) {
+        dlen++;
+        err -= dy;
+        if (err < 0) {
+            err += dx;
+            if (dlen == 1) draw_pixel(self, y0, xs, color);
+            else fast_vline(self, y0, xs, dlen, color);
+            dlen = 0; y0 += ystep; xs = x0 + 1;
+        }
+        }
+        if (dlen) fast_vline(self, y0, xs, dlen, color);
+    }
+    else
+    {
+        for (; x0 <= x1; x0++) {
+        dlen++;
+        err -= dy;
+        if (err < 0) {
+            err += dx;
+            if (dlen == 1) draw_pixel(self, xs, y0, color);
+            else fast_hline(self, xs, y0, dlen, color);
+            dlen = 0; y0 += ystep; xs = x0 + 1;
+        }
+        }
+        if (dlen) fast_hline(self, xs, y0, dlen, color);
+    }
+}
 
 STATIC mp_obj_t st7789_ST7789_hard_reset(mp_obj_t self_in) {
     st7789_ST7789_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -254,6 +326,17 @@ STATIC mp_obj_t st7789_ST7789_fill_rect(size_t n_args, const mp_obj_t *args) {
     mp_int_t h = mp_obj_get_int(args[4]);
     mp_int_t color = mp_obj_get_int(args[5]);
 
+    LIMIT(x, 0, 239);
+    LIMIT(y, 0, 239);
+    
+    if ((x + w - 1) > 239) {
+        w = 239 - x;
+    }
+
+    if ((y + h - 1) > 239) {
+        h = 239 - y;
+    }
+
     set_window(self, x, y, x + w - 1, y + h - 1);
     DC_HIGH();
     CS_LOW();
@@ -301,50 +384,8 @@ STATIC mp_obj_t st7789_ST7789_line(size_t n_args, const mp_obj_t *args) {
     mp_int_t y1 = mp_obj_get_int(args[4]);
     mp_int_t color = mp_obj_get_int(args[5]);
 
-    bool steep = ABS(y1 - y0) > ABS(x1 - x0);
-    if (steep) {
-        _swap_int16_t(x0, y0);
-        _swap_int16_t(x1, y1);
-    }
+    line(self, x0, y0, x1, y1, color);
 
-    if (x0 > x1) {
-        _swap_int16_t(x0, x1);
-        _swap_int16_t(y0, y1);
-    }
-
-    int16_t dx = x1 - x0, dy = ABS(y1 - y0);
-    int16_t err = dx >> 1, ystep = -1, xs = x0, dlen = 0;
-
-    if (y0 < y1) ystep = 1;
-
-    // Split into steep and not steep for FastH/V separation
-    if (steep) {
-        for (; x0 <= x1; x0++) {
-        dlen++;
-        err -= dy;
-        if (err < 0) {
-            err += dx;
-            if (dlen == 1) draw_pixel(self, y0, xs, color);
-            else fast_vline(self, y0, xs, dlen, color);
-            dlen = 0; y0 += ystep; xs = x0 + 1;
-        }
-        }
-        if (dlen) fast_vline(self, y0, xs, dlen, color);
-    }
-    else
-    {
-        for (; x0 <= x1; x0++) {
-        dlen++;
-        err -= dy;
-        if (err < 0) {
-            err += dx;
-            if (dlen == 1) draw_pixel(self, xs, y0, color);
-            else fast_hline(self, xs, y0, dlen, color);
-            dlen = 0; y0 += ystep; xs = x0 + 1;
-        }
-        }
-        if (dlen) fast_hline(self, xs, y0, dlen, color);
-    }
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7789_ST7789_line_obj, 6, 6, st7789_ST7789_line);
@@ -476,6 +517,64 @@ STATIC mp_obj_t st7789_ST7789_rect(size_t n_args, const mp_obj_t *args) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7789_ST7789_rect_obj, 6, 6, st7789_ST7789_rect);
 
+STATIC mp_obj_t st7789_ST7789_circle(size_t n_args, const mp_obj_t *args) {
+    st7789_ST7789_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_int_t x0 = mp_obj_get_int(args[1]);
+    mp_int_t y0 = mp_obj_get_int(args[2]);
+    mp_int_t r = mp_obj_get_int(args[3]);
+    mp_int_t color = mp_obj_get_int(args[4]);
+
+	int x;
+	int y;
+	int err;
+	int old_err;
+
+	x=0;
+	y=-r;
+	err=2-2*r;
+	do{
+		draw_pixel(self, x0-x, y0+y, color); 
+		draw_pixel(self, x0-y, y0-x, color); 
+		draw_pixel(self, x0+x, y0-y, color); 
+		draw_pixel(self, x0+y, y0+x, color);
+		if ((old_err=err)<=x)   err+=++x*2+1;
+		if (old_err>y || err>x) err+=++y*2+1;    
+	} while(y<0);
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7789_ST7789_circle_obj, 5, 5, st7789_ST7789_circle);
+
+STATIC mp_obj_t st7789_ST7789_fill_circle(size_t n_args, const mp_obj_t *args) {
+    st7789_ST7789_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+    mp_int_t x0 = mp_obj_get_int(args[1]);
+    mp_int_t y0 = mp_obj_get_int(args[2]);
+    mp_int_t r = mp_obj_get_int(args[3]);
+    mp_int_t color = mp_obj_get_int(args[4]);
+
+	int x;
+	int y;
+	int err;
+	int old_err;
+	int ChangeX;
+
+	x=0;
+	y=-r;
+	err=2-2*r;
+	ChangeX=1;
+	do{
+		if(ChangeX) {
+			line(self, x0-x, y0-y, x0-x, y0+y, color);
+			line(self, x0+x, y0-y, x0+x, y0+y, color);
+		} // endif
+		ChangeX=(old_err=err)<=x;
+		if (ChangeX)            err+=++x*2+1;
+		if (old_err>y || err>x) err+=++y*2+1;
+	} while(y<=0);
+
+    return mp_const_none;
+} 
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7789_ST7789_fill_circle_obj, 5, 5, st7789_ST7789_fill_circle);
 
 // Draw Text
 #include "dw_font.h"
@@ -608,6 +707,8 @@ STATIC const mp_rom_map_elem_t st7789_ST7789_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fill), MP_ROM_PTR(&st7789_ST7789_fill_obj) },
     { MP_ROM_QSTR(MP_QSTR_hline), MP_ROM_PTR(&st7789_ST7789_hline_obj) },
     { MP_ROM_QSTR(MP_QSTR_vline), MP_ROM_PTR(&st7789_ST7789_vline_obj) },
+    { MP_ROM_QSTR(MP_QSTR_circle), MP_ROM_PTR(&st7789_ST7789_circle_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fill_circle), MP_ROM_PTR(&st7789_ST7789_fill_circle_obj) },
     { MP_ROM_QSTR(MP_QSTR_rect), MP_ROM_PTR(&st7789_ST7789_rect_obj) },
     { MP_ROM_QSTR(MP_QSTR_text), MP_ROM_PTR(&st7789_ST7789_text_obj) },
     { MP_ROM_QSTR(MP_QSTR_image), MP_ROM_PTR(&st7789_ST7789_image_obj) },
