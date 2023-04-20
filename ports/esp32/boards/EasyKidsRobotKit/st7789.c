@@ -328,7 +328,7 @@ STATIC mp_obj_t st7789_ST7789_fill_rect(size_t n_args, const mp_obj_t *args) {
 
     LIMIT(x, 0, 239);
     LIMIT(y, 0, 239);
-    
+
     if ((x + w - 1) > 239) {
         w = 239 - x;
     }
@@ -657,12 +657,19 @@ STATIC mp_obj_t st7789_ST7789_image(size_t n_args, const mp_obj_t *args) {
     mp_int_t x = mp_obj_get_int(args[2]);
     mp_int_t y = mp_obj_get_int(args[3]);
 
+    LIMIT(x, 0, 239);
+    LIMIT(y, 0, 239);
+
     if (buf_info.len < 4) {
         return mp_const_none;
     }
 
     mp_int_t w = ((uint16_t)(((uint8_t*) buf_info.buf)[0] << 8)) | ((uint8_t*) buf_info.buf)[1];
     mp_int_t h = ((uint16_t)(((uint8_t*) buf_info.buf)[2] << 8)) | ((uint8_t*) buf_info.buf)[3];
+
+    if (((x + w - 1) > 239) || ((y + h - 1) > 239)) {
+        mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Image position over display size"));
+    }
 
     set_window(self, x, y, x + w - 1, y + h - 1);
     DC_HIGH();
