@@ -142,6 +142,13 @@ class Motor_t:
     M4A = const(6)
     M4B = const(7)
 
+    FORWARD = 0
+    BACKWARD = 1
+    TURN_LEFT = 2
+    TURN_RIGHT = 3
+    SPIN_LEFT = 4
+    SPIN_RIGHT = 5
+
     def __init__(self):
         pca9685.duty(self.M1A, 0, 4095)
         pca9685.duty(self.M1B, 0, 4095)
@@ -157,19 +164,21 @@ class Motor_t:
         if speed_left < 0:
             speed_left = speed_left * -1
         speed_left = 4095 - min(max(int(speed_left / 100 * 4095), 0), 4095)
-        pca9685.duty(self.M1A, 0, 4095 if dir1 == 1 else speed_left)
-        pca9685.duty(self.M1B, 0, speed_left if dir1 == 1 else 4095)
-        pca9685.duty(self.M2A, 0, 4095 if dir1 == 1 else speed_left)
-        pca9685.duty(self.M2B, 0, speed_left if dir1 == 1 else 4095)
 
-        dir2 = 1 if speed_right >= 0 else 0
+        dir2 = 0 if speed_right >= 0 else 1
         if speed_right < 0:
             speed_right = speed_right * -1
         speed_right = 4095 - min(max(int(speed_right / 100 * 4095), 0), 4095)
-        pca9685.duty(self.M3A, 0, 4095 if dir2 == 1 else speed_right)
-        pca9685.duty(self.M3B, 0, speed_right if dir2 == 1 else 4095)
-        pca9685.duty(self.M4A, 0, 4095 if dir2 == 1 else speed_right)
-        pca9685.duty(self.M4B, 0, speed_right if dir2 == 1 else 4095)
+
+        pca9685.duty(self.M1A, 0, 4095 if dir2 == 1 else speed_right)
+        pca9685.duty(self.M1B, 0, speed_right if dir2 == 1 else 4095)
+        pca9685.duty(self.M2A, 0, 4095 if dir2 == 1 else speed_right)
+        pca9685.duty(self.M2B, 0, speed_right if dir2 == 1 else 4095)
+
+        pca9685.duty(self.M3A, 0, 4095 if dir1 == 1 else speed_left)
+        pca9685.duty(self.M3B, 0, speed_left if dir1 == 1 else 4095)
+        pca9685.duty(self.M4A, 0, 4095 if dir1 == 1 else speed_left)
+        pca9685.duty(self.M4B, 0, speed_left if dir1 == 1 else 4095)
 
     def forward(self, speed=50, time=1):
         self.wheel(speed, speed)
@@ -202,16 +211,20 @@ class Motor_t:
         self.wheel(0, 0)
 
     def move(self, dir, speed):
-        if dir == FORWARD:
+        if dir == self.FORWARD:
             self.wheel(speed, speed)
-        elif dir == BACKWARD:
+        elif dir == self.BACKWARD:
             self.wheel(speed * -1, speed * -1)
-        elif dir == TURN_LEFT:
+        elif dir == self.TURN_LEFT:
             self.wheel(0, speed)
-        elif dir == TURN_RIGHT:
+        elif dir == self.TURN_RIGHT:
             self.wheel(speed, 0)
+        elif dir == self.SPIN_LEFT:
+            self.wheel(speed * -1, speed)
+        elif dir == self.SPIN_RIGHT:
+            self.wheel(speed, speed * -1)
 
-    def stop():
+    def stop(self):
         self.wheel(0, 0)
 
 motor = Motor_t()
