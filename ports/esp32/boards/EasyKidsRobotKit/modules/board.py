@@ -3,6 +3,7 @@ from time import sleep, sleep_ms, sleep_us
 import _thread
 import machine
 import st7789
+from neopixel import NeoPixel
 
 # Board Pin define
 I2C_SDA_PIN = const(21)
@@ -182,71 +183,71 @@ class Motor_t:
             speed_m4 = speed_m4 * -1
         speed_m4 = 4095 - min(max(int(speed_m4 / 100 * 4095), 0), 4095)
 
-        pca9685.duty(self.M1A, 0, 4095 if dir1 == 1 else speed_m1)
-        pca9685.duty(self.M1B, 0, speed_m1 if dir1 == 1 else 4095)
-        
-        pca9685.duty(self.M2A, 0, 4095 if dir2 == 1 else speed_m2)
-        pca9685.duty(self.M2B, 0, speed_m2 if dir2 == 1 else 4095)
+        pca9685.duty(self.M1A, 0, speed_m1 if dir1 == 1 else 4095)
+        pca9685.duty(self.M1B, 0, 4095 if dir1 == 1 else speed_m1)
 
-        pca9685.duty(self.M3A, 0, 4095 if dir3 == 1 else speed_m3)
-        pca9685.duty(self.M3B, 0, speed_m3 if dir3 == 1 else 4095)
+        pca9685.duty(self.M2A, 0, speed_m2 if dir2 == 1 else 4095)
+        pca9685.duty(self.M2B, 0, 4095 if dir2 == 1 else speed_m2)
+
+        pca9685.duty(self.M3A, 0, speed_m3 if dir3 == 1 else 4095)
+        pca9685.duty(self.M3B, 0, 4095 if dir3 == 1 else speed_m3)
         
-        pca9685.duty(self.M4A, 0, 4095 if dir4 == 1 else speed_m4)
-        pca9685.duty(self.M4B, 0, speed_m4 if dir4 == 1 else 4095)
+        pca9685.duty(self.M4A, 0, speed_m4 if dir4 == 1 else 4095)
+        pca9685.duty(self.M4B, 0, 4095 if dir4 == 1 else speed_m4)
 
     def forward(self, speed=50, time=1):
         self.wheel(speed, speed, speed, speed)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def backward(self, speed=50, time=1):
         self.wheel(speed * -1, speed * -1, speed * -1, speed * -1)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def turn_left(self, speed=50, time=1):
         self.wheel(0, 0, speed, speed)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def turn_right(self, speed=50, time=1):
         self.wheel(speed, speed, 0, 0)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def spin_left(self, speed=50, time=1):
         self.wheel(speed * -1, speed * -1, speed, speed)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def spin_right(self, speed=50, time=1):
         self.wheel(speed, speed, speed * -1, speed * -1)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
     
     def slide_left(self, speed=50, time=1):
         self.wheel(speed * -1, speed, speed, speed * -1)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def slide_right(self, speed=50, time=1):
         self.wheel(speed, speed * -1, speed * -1, speed)
         sleep(time)
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
     def move(self, dir, speed):
         if dir == self.FORWARD:
-            self.wheel(speed, speed)
+            self.wheel(speed, speed, speed, speed)
         elif dir == self.BACKWARD:
-            self.wheel(speed * -1, speed * -1)
+            self.wheel(speed * -1, speed * -1, speed * -1, speed * -1)
         elif dir == self.TURN_LEFT:
-            self.wheel(0, speed)
+            self.wheel(0, 0, speed, speed)
         elif dir == self.TURN_RIGHT:
-            self.wheel(speed, 0)
+            self.wheel(speed, speed, 0, 0)
         elif dir == self.SPIN_LEFT:
-            self.wheel(speed * -1, speed)
+            self.wheel(speed * -1, speed * -1, speed, speed)
         elif dir == self.SPIN_RIGHT:
-            self.wheel(speed, speed * -1)
+            self.wheel(speed, speed, speed * -1, speed * -1)
         elif dir == self.SLIDE_LEFT:
             self.wheel(speed * -1, speed, speed, speed * -1)
         elif dir == self.SLIDE_RIGHT:
@@ -254,7 +255,7 @@ class Motor_t:
 
 
     def stop(self):
-        self.wheel(0, 0)
+        self.wheel(0, 0, 0, 0)
 
 motor = Motor_t()
 
@@ -301,3 +302,55 @@ def color_hex(c):
 spi = machine.SPI(2, baudrate=40000000, polarity=1, sck=machine.Pin(18), mosi=machine.Pin(23))
 display = st7789.ST7789(spi, 240, 240, reset=machine.Pin(4, machine.Pin.OUT), dc=machine.Pin(2, machine.Pin.OUT))
 display.init()
+
+class RGBLED_t:
+    def __init__(self, pin, n):
+        self.np = NeoPixel(Pin(pin, Pin.OUT), n)
+        self.np.bright = 50
+
+    def color_converter(self, c):
+        if type(c) is str:
+            return (
+                int(int(c[1:3], 16) * (self.np.bright / 100)), 
+                int(int(c[3:5], 16) * (self.np.bright / 100)), 
+                int(int(c[5:7], 16) * (self.np.bright / 100))
+            )
+        else:
+            return c
+
+    def set_color(self, n, c):
+        self.np[n] = self.color_converter(c)
+    
+    def fill(self, c):
+        c = self.color_converter(c)
+        for i in range(self.np.n):
+            self.np[i] = c
+
+    def clear(self):
+        self.fill(( 0, 0, 0 ))
+    
+    def show(self):
+        self.np.write()
+
+    def rainbow(self, wait):
+        for j in range(256):
+            for i in range(self.np.n):
+                WheelPos = (i * 1 + j) & 255
+                if WheelPos < 85:
+                    self.np[i] = (int((WheelPos * 3) * self.np.bright / 100), int((255 - WheelPos * 3) * self.np.bright / 100), 0)
+                elif WheelPos < 170:
+                    WheelPos -= 85
+                    self.np[i] = (int((255 - WheelPos * 3) * self.np.bright / 100), 0, int((WheelPos * 3) * self.np.bright / 100))
+                else:
+                    WheelPos -= 170
+                    self.np[i] = (0, int((WheelPos * 3) * self.np.bright / 100), int((255 - WheelPos * 3) * self.np.bright / 100))
+            self.np.write()
+            sleep_ms(wait)
+
+    def set_brightness(self, value):
+        self.np.bright = value
+
+rgbled = {
+    "board": RGBLED_t(25, 6),
+    "car": RGBLED_t(19, 12)
+}
