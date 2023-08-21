@@ -426,18 +426,120 @@ STATIC mp_obj_t st7789_ST7789_init(mp_obj_t self_in) {
     st7789_ST7789_obj_t *self = MP_OBJ_TO_PTR(self_in);
     st7789_ST7789_hard_reset(self_in);
     st7789_ST7789_soft_reset(self_in);
-    write_cmd(self, ST7789_SLPOUT, NULL, 0);
+    mp_hal_delay_ms(100);
 
-    const uint8_t color_mode[] = { COLOR_MODE_65K | COLOR_MODE_16BIT};
-    write_cmd(self, ST7789_COLMOD, color_mode, 1);
-    mp_hal_delay_ms(10);
-    const uint8_t madctl[] = { ST7789_MADCTL_ML | ST7789_MADCTL_RGB };
+    write_cmd(self, ST7789_SLPOUT, NULL, 0);
+    mp_hal_delay_ms(120);
+
+    write_cmd(self, ST7789_NORON, NULL, 0);
+
+    //------------------------------display and color format setting--------------------------------//
+    const uint8_t madctl[] = { ST7789_MADCTL_ML | ST7789_MADCTL_BGR };
     write_cmd(self, ST7789_MADCTL, madctl, 1);
 
+    { // JLX240 display datasheet
+        const uint8_t data[] = { 0x0A, 0x82 };
+        write_cmd(self, 0xB6, data, 2);
+    }
+
+    { // RAM control
+        const uint8_t data[] = { 0x00, 0xE0 }; // 5 to 6 bit conversion: r0 = r5, b0 = b5
+        write_cmd(self, ST7789_RAMCTRL, data, 2);
+    }
+
+    { // Color Mode
+        const uint8_t color_mode[] = { COLOR_MODE_65K | COLOR_MODE_16BIT};
+        write_cmd(self, ST7789_COLMOD, color_mode, 1);
+    }
+    
+    mp_hal_delay_ms(10);
+
+    { // ST7789V Frame rate setting
+        const uint8_t data[] = { 0x0c, 0x0c, 0x00, 0x33, 0x33 };
+        write_cmd(self, ST7789_PORCTRL, data, 5);
+    }
+
+    { // Voltages: VGH / VGL
+        const uint8_t data[] = { 0x35 };
+        write_cmd(self, ST7789_GCTRL, data, 1);
+    }
+
+    { // ST7789V Power setting
+        const uint8_t data[] = { 0x28 }; // JLX240 display datasheet
+        write_cmd(self, ST7789_VCOMS, data, 1);
+    }
+
+    {
+        const uint8_t data[] = { 0x0C };
+        write_cmd(self, ST7789_LCMCTRL, data, 1);
+    }
+
+    {
+        const uint8_t data[] = { 0x01, 0xFF };
+        write_cmd(self, ST7789_VDVVRHEN, data, 2);
+    }
+
+    {
+        const uint8_t data[] = { 0x10 };
+        write_cmd(self, ST7789_VRHS, data, 1);
+    }
+
+    {
+        const uint8_t data[] = { 0x20 };
+        write_cmd(self, ST7789_VDVSET, data, 1);
+    }
+
+    {
+        const uint8_t data[] = { 0x0f };
+        write_cmd(self, ST7789_FRCTR2, data, 1);
+    }
+
+    {
+        const uint8_t data[] = { 0xa4, 0xa1 };
+        write_cmd(self, ST7789_PWCTRL1, data, 1);
+    }
+
+    { // ST7789V gamma setting
+        const uint8_t data[] = {
+            0xd0,
+            0x00,
+            0x02,
+            0x07,
+            0x0a,
+            0x28,
+            0x32,
+            0x44,
+            0x42,
+            0x06,
+            0x0e,
+            0x12,
+            0x14,
+            0x17
+        };
+        write_cmd(self, ST7789_PVGAMCTRL, data, sizeof(data));
+    }
+
+    {
+        const uint8_t data[] = {
+            0xd0,
+            0x00,
+            0x02,
+            0x07,
+            0x0a,
+            0x28,
+            0x31,
+            0x54,
+            0x47,
+            0x0e,
+            0x1c,
+            0x17,
+            0x1b,
+            0x1e,
+        };
+        write_cmd(self, ST7789_NVGAMCTRL, data, sizeof(data));
+    }
+
     write_cmd(self, ST7789_INVON, NULL, 0);
-    mp_hal_delay_ms(10);
-    write_cmd(self, ST7789_NORON, NULL, 0);
-    mp_hal_delay_ms(10);
 
     const mp_obj_t args[] = {
         self_in,
@@ -587,6 +689,9 @@ extern dw_font_info_t font_supermarket_regular120;
 extern dw_font_info_t font_th_sarabun_new_regular20;
 extern dw_font_info_t font_th_sarabun_new_regular40;
 extern dw_font_info_t font_th_sarabun_new_regular60;
+extern dw_font_info_t font_th_sarabun_new_regular80;
+extern dw_font_info_t font_th_sarabun_new_regular120;
+extern dw_font_info_t font_th_sarabun_new_regular200;
 
 const dw_font_info_t* fonts[] = {
     &font_supermarket_regular20,
@@ -596,6 +701,9 @@ const dw_font_info_t* fonts[] = {
     &font_th_sarabun_new_regular20,
     &font_th_sarabun_new_regular40,
     &font_th_sarabun_new_regular60,
+    &font_th_sarabun_new_regular80,
+    &font_th_sarabun_new_regular120,
+    &font_th_sarabun_new_regular200,
 };
 
 dw_font_t myfont;
@@ -727,6 +835,9 @@ STATIC const mp_rom_map_elem_t st7789_ST7789_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_20), MP_ROM_INT(4) },
     { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_40), MP_ROM_INT(5) },
     { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_60), MP_ROM_INT(6) },
+    { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_80), MP_ROM_INT(7) },
+    { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_120), MP_ROM_INT(8) },
+    { MP_ROM_QSTR(MP_QSTR_FONT_TH_SARABUN_NEW_200), MP_ROM_INT(9) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(st7789_ST7789_locals_dict, st7789_ST7789_locals_dict_table);

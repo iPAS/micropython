@@ -299,7 +299,7 @@ def color_hex(c):
         b = c & 0xFF
         return st7789.color565(r, g, b)
 
-spi = machine.SPI(2, baudrate=40000000, polarity=1, sck=machine.Pin(18), mosi=machine.Pin(23))
+spi = machine.SPI(2, baudrate=40000000, polarity=1, phase=1, sck=machine.Pin(18), mosi=machine.Pin(23))
 display = st7789.ST7789(spi, 240, 240, reset=machine.Pin(4, machine.Pin.OUT), dc=machine.Pin(2, machine.Pin.OUT))
 display.init()
 
